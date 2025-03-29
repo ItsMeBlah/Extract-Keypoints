@@ -50,7 +50,6 @@ def inference(original_imgs, yolov6_sess, vitpose_sess, cfg, smooth_net=None):
 
     preds = np.concatenate(preds)
     
-    
     # Postprocess preds
     preds = preds[..., :6] # take only human class
     bbox_groups = non_max_suppression(preds, cfg.conf_thres, cfg.iou_thres)
