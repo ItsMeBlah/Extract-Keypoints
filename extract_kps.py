@@ -2,18 +2,14 @@ import os
 
 import onnxruntime as ort
 
-from utils.inference import inference_image, inference_video, inference_webcam
+from utils.inference import extract_keypoints_2
 from utils import get_config
 
 
 def main(cfg):
     YOLOV6_PATH = cfg.yolov6_path
     VITPOSE_PATH = cfg.vitpose_path
-    IMG_PATH = cfg.image_path
-    VID_PATH = cfg.video_path
-    WEBCAM = cfg.webcam
-
-    assert (IMG_PATH or VID_PATH or (WEBCAM is not None)), "Argument -img or -vid or -wc should be provided"
+    FOLDER_PATH = cfg.folder_path
 
     # if cfg.cpu:
     #     EP_list = ['CPUExecutionProvider']
@@ -28,17 +24,10 @@ def main(cfg):
 
     os.system("") # make terminal to be able to use ANSI escape
 
-    # Inference image
-    if IMG_PATH:
-        inference_image(IMG_PATH, yolov6_sess, vitpose_sess, cfg)
-
-    #Inference video from file
-    if VID_PATH:
-        inference_video(VID_PATH, yolov6_sess, vitpose_sess, cfg)
-
-    # Inference video from webcam
-    if WEBCAM is not None:
-        inference_webcam(WEBCAM, yolov6_sess, vitpose_sess, cfg)
+    if FOLDER_PATH:
+        print("Extract keypoints from images in the folder")
+        
+        extract_keypoints_2(FOLDER_PATH, yolov6_sess, vitpose_sess, cfg)
 
 
 if __name__ == "__main__":

@@ -4,11 +4,15 @@ import pickle
 
 import numpy as np
 import cv2
+import os
+import pandas as pd
+from tqdm import tqdm
 
 from utils.visualization import draw_points_and_skeleton, joints_dict
 from utils.util import print_fps
 from utils.vitpose_util import keypoints_from_heatmaps
 from utils.yolov6_util import letterbox, non_max_suppression, preprocess_with_bboxes, xyxy2xywh, plot_box_and_label 
+from utils.prepUtil import calculate_euclidean_distance, shift_points, get_rotation_angle, rotate_cropped_image, rotate_keypoints, convert_ratio, add_padding_cropped_img, calculate_overlap
 
 
 def inference(original_imgs, yolov6_sess, vitpose_sess, cfg, smooth_net=None):
@@ -53,7 +57,6 @@ def inference(original_imgs, yolov6_sess, vitpose_sess, cfg, smooth_net=None):
     # Postprocess preds
     preds = preds[..., :6] # take only human class
     bbox_groups = non_max_suppression(preds, cfg.conf_thres, cfg.iou_thres)
-    
     
     # Preprocess images for ViTPose input
     processed_imgs = []
@@ -135,8 +138,107 @@ def inference(original_imgs, yolov6_sess, vitpose_sess, cfg, smooth_net=None):
 
     return infered_imgs, (bbox_groups, keypoint_groups)
 
+def extract_keypoints_2(folder_path, yolov6_sess, vitpose_sess, cfg):
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"{folder_path} does not exist")
+    
+    # create a csv file
+    csv_data = {
+        'img_name':[],
+        'img_shape':[],
+        'labels': [],
+        'bbox':[],
+        'keypoints':[]
+    }
 
+    target_class_count_label = 0
+    target_class_count_csv = 0
+    
+    for img_name in tqdm(os.listdir(folder_path), desc="Processing images"):
+        img_path = os.path.join(folder_path, img_name)
+        img_origin = cv2.imread(img_path)
+        img_copy = img_origin.copy()
+        label_path = img_path.replace("images", "labels").replace(".jpg", ".txt")
 
+        labels = []
+        if label_path:
+            with open(label_path, 'r') as f:
+                for line in f: 
+                    class_id, x, y, w, h = map(float, line.strip().split())
+                    if class_id in cfg.target_class:
+                        xmin, ymin = int((x - w / 2) * img_origin.shape[1]), int((y - h / 2) * img_origin.shape[0])
+                        xmax, ymax = int((x + w / 2) * img_origin.shape[1]), int((y + h / 2) * img_origin.shape[0])
+                        xmin, ymin, xmax, ymax = int(xmin), int(ymin), int(xmax), int(ymax)
+                        target_class_count_label += 1
+                        labels.append([int(class_id), xmin, ymin, xmax, ymax])
+
+        img_origin = img_origin[..., ::-1] # BGR to RGB
+        img_origin = np.expand_dims(img_origin, axis=0)
+        _, pred = inference(img_origin, yolov6_sess, vitpose_sess, cfg)
+        if len(pred[0]) == 0:
+            continue
+        bboxs = pred[0][0]
+        keypoints = pred[1][0]
+
+        for index, (bbox, keypoint) in enumerate(zip(bboxs, keypoints)):
+            class_id = 0
+            xmin, ymin, xmax, ymax = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+            temp_bbox = [xmin, ymin, xmax, ymax]
+
+            if len(labels) != 0:
+                for label in labels:
+                    overlap_percentage = calculate_overlap(label[1:], temp_bbox)
+                    euclid_distances = calculate_euclidean_distance(temp_bbox, label[1:])
+                    # print(f'overlap_percentage: {overlap_percentage}, euclid_distances: {euclid_distances}')
+                    # print('-------')
+                    if overlap_percentage >= cfg.matched_overlap_thresh and euclid_distances <= cfg.euclid_thresh:
+                        target_class_count_csv += 1
+                        class_id = 1
+                        break
+                    else:
+                        if overlap_percentage >= 0.9 or euclid_distances <= 10:
+                            target_class_count_csv += 1
+                            class_id = 1
+                            break
+
+            cropped_img = img_copy[ymin:ymax, xmin:xmax]
+            scaled_bbox, scale_ratio, padding_ratio = letterbox(im=cropped_img, new_shape=(64,64), scaleup=True, stride=64)
+
+            for i, pt in enumerate(keypoint):
+                if pt[2] <= 0.5:
+                    keypoint[i] = [0, 0, pt[2]]
+                    continue
+
+                new_pt_x, new_pt_y = shift_points([xmin, ymin, xmax, ymax, pt[1], pt[0], scale_ratio, padding_ratio])
+                keypoint[i] = [new_pt_x, new_pt_y, pt[2]]
+
+            keypoint = keypoint[:, :2]
+
+            if cfg.normalize_kps:
+                angle, _ = get_rotation_angle(keypoint)
+                if angle is not None:
+                    cropped_padding, padded_keypoint = add_padding_cropped_img(scaled_bbox, keypoint)
+                    rotated_image, M = rotate_cropped_image(cropped_padding, angle)
+                    rotated_keypoints = rotate_keypoints(padded_keypoint, M)
+                    norm_keypoint = convert_ratio(rotated_image, rotated_keypoints)
+                else:
+                    norm_keypoint = convert_ratio(scaled_bbox, keypoint)
+            else:
+                norm_keypoint = keypoint
+
+            csv_data['img_name'].append(img_name)
+            csv_data['img_shape'].append((yolov6_sess.get_inputs()[0].shape[-2], yolov6_sess.get_inputs()[0].shape[-1]))
+            csv_data['labels'].append(class_id)
+            csv_data['bbox'].append(temp_bbox)
+            csv_data['keypoints'].append(norm_keypoint)
+            
+    df = pd.DataFrame(csv_data)
+    save_name = folder_path.replace("images", "") + 'labels.csv'
+    df.to_csv(save_name, index=False)
+    print(f"Extracted keypoints are saved to {save_name}")
+    print(f"Target class count in labels: {target_class_count_label}")
+    print(f"Target class count in csv: {target_class_count_csv}")
+    print(f"Successfully extract {round(target_class_count_csv/target_class_count_label*100, 2)}% of target class in labels")
 
 def inference_image(img_path, yolov6_sess, vitpose_sess, cfg):
     img_origin = cv2.imread(img_path)
@@ -184,6 +286,8 @@ def inference_video(vid_path, yolov6_sess, vitpose_sess, cfg, smooth_net=None):
         ret, frame = video.read()
 
         if ret:
+            # if not cfg.save:
+            #     frame = cv2.resize(frame, (1280, 720))
             frames.append(frame)
             if len(frames) < cfg.yolo_batch_size:
                 continue

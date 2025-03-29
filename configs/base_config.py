@@ -35,12 +35,13 @@ yolo batch size (int): set yolo batch size, it works only in video
 
 _C = CN()
 
-_C.yolov6_path = 'yolov6m.onnx'
-_C.vitpose_path = 'vitpose-b-multi-coco.onnx'
+_C.yolov6_path = 'models/yolov6m.onnx'
+_C.vitpose_path = 'models/vitpose-b-multi-coco.onnx'
 
-_C.image_path = ''
-_C.video_path = ''
-_C.webcam = None
+_C.folder_path = "F:/DXTech/PhoneUsageDet/dataset/cctv-accurate/test/images"
+_C.image_path = "F:/DXTech/PhoneUsageDet/dataset/dxtech_dataset/valid/images/prep_train_5_3_8aa35120-6fd5-4d99-8839-1da27d5639ce_png.rf.6a77c385bb815d92b65f820ebb8bab9e.jpg"
+_C.video_path = ""
+_C.webcam = None 
 
 _C.no_background = False
 _C.no_bbox = False
@@ -49,12 +50,12 @@ _C.dynamic_drawing = False
 _C.smooth_net = False
 _C.result_scale = None
 
-_C.save = False
+_C.save = True
 _C.save_prediction = False
 _C.set_fps = None
 
 _C.conf_thres = 0.25
-_C.iou_thres = 0.45
+_C.iou_thres = 0.5
 _C.max_detection = 100
 _C.key_conf_thres = 0.4
 _C.no_pad = False
@@ -62,5 +63,9 @@ _C.cpu = False
 _C.pose_batch_size = 1
 _C.yolo_batch_size = 1
 
+_C.matched_overlap_thresh = 0.6
+_C.euclid_thresh = 25
+_C.target_class = [2]
+_C.normalize_kps = True
 
 cfg = _C

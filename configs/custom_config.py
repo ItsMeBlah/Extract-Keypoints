@@ -40,7 +40,7 @@ _C.vitpose_path = 'vitpose-b-multi-coco.onnx'
 
 _C.image_path = ''
 _C.video_path = ''
-_C.webcam = None
+_C.webcam = 0
 
 _C.no_background = False
 _C.no_bbox = True
