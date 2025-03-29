@@ -38,8 +38,8 @@ _C = CN()
 _C.yolov6_path = 'models/yolov6m.onnx'
 _C.vitpose_path = 'models/vitpose-b-multi-coco.onnx'
 
-_C.folder_path = "F:/DXTech/PhoneUsageDet/dataset/cctv-accurate/test/images"
-_C.image_path = "F:/DXTech/PhoneUsageDet/dataset/dxtech_dataset/valid/images/prep_train_5_3_8aa35120-6fd5-4d99-8839-1da27d5639ce_png.rf.6a77c385bb815d92b65f820ebb8bab9e.jpg"
+_C.folder_path = ""
+_C.image_path = ""
 _C.video_path = ""
 _C.webcam = None 
 
@@ -63,8 +63,8 @@ _C.cpu = False
 _C.pose_batch_size = 1
 _C.yolo_batch_size = 1
 
-_C.matched_overlap_thresh = 0.6
-_C.euclid_thresh = 25
+_C.matched_overlap_thresh = 0.7
+_C.euclid_thresh = 100
 _C.target_class = [2]
 _C.normalize_kps = True
 
